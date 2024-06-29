@@ -1,6 +1,12 @@
 # DSR-HK
 
 ## Datasets
+We use three datasets to test the model. Here is an introduction to these datasets:
+1. [Tmall](https://tianchi.aliyun.com/dataset/140281): The Tmall dataset is a widely used resource in recommendation system research, sourced from Alibaba's e-commerce platform. This dataset includes millions of user-item interaction records spanning several months, capturing temporal patterns in user behavior. It encompasses user IDs, item IDs, brands, categories, user actions (such as clicks, favorites, add-to-cart, and purchases), and timestamps. To protect user privacy, all IDs are anonymized.
+
+2. [Retailrocket](https://www.kaggle.com/datasets/retailrocket/ecommerce-dataset): The Retailrocket dataset originates from a real e-commerce company, containing user behavior data over a six-month period. It includes records of user views, add-to-cart actions, and transactions, along with product metadata. This dataset is popular among recommendation system researchers due to its authenticity and rich user behavior information, making it particularly suitable for developing and testing personalized recommendation algorithms.
+
+3. KKBOX: The KKBOX dataset is a music recommendation dataset provided by KKcompany for a private Kaggle competition. It records users' music listening sequences and includes metadata information for each song. To protect user privacy, all data has been hashed. In this dataset, each session is set to a length of 20 songs, and each session has 5 ground truths. In our experiment, we only use the first one as the ground truth.
 
 
 ## Requirements
