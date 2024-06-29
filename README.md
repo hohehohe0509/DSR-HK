@@ -1,6 +1,6 @@
 # DSR-HK
 Session-based recommendation systems need to capture implicit user intents from sessions, but existing models suffer from issues like item interaction dominance, noisy knowledge graphs, and session noise. We propose a multi-channel model with a knowledge graph channel, session hypergraph channel, and session line graph channel to capture relevant information from knowledge graphs, within sessions, and beyond sessions respectively. In the knowledge graph channel, we adapt ively remove redundant edges to reduce noise. Knowledge graph representations cooperate with hypergraph representations for prediction to alleviate item dominance. We also generate in-session attention for denoising. Finally, we maximize mutual information between the hypergraph and line graph channels as an auxiliary task.
-![image](https://github.com/hohehohe0509/DSR-HK/blob/main/%E6%9E%B6%E6%A7%8Bv1.pdf)
+![image](https://github.com/hohehohe0509/DSR-HK/blob/main/%E6%9E%B6%E6%A7%8BV1.PNG)
 
 ## Datasets
 We use three datasets to test the model. Here is an introduction to these datasets:
