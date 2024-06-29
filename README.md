@@ -1,1 +1,75 @@
 # DSR-HK
+
+## Datasets
+
+
+## Requirements
+The entire experiment is running in an Ubuntu environment with Cuda version 11.8. 
+Please download and install the following packages to configure the environment:
+```
+#cuda 11.8
+
+pip install --user -U scikit-learn==0.23.2
+pip install python 3.10
+pip install pytorch 2.0.1+cu118
+pip install numpy 1.26.2
+pip install scipy 1.11.4
+pip install numba 0.58.1
+pip install dgl -f https://data.dgl.ai/wheels/cu118/repo.html
+```
+
+## File Description
+The "datasets/" folder contains three preprocessed datasets used for testing the experiment: Tmall, Retailrocket, and KKBOX. Each dataset has its own folder named after itself, containing the following files:
+* kg.txt: This is the knowledge graph file. Each line represents a triple in the format "entity relation entity".
+* all_train_seq.txt: This is the original training set before session splitting. The content has been converted using pickle. The input is a sequence of item IDs, and the target is a single item ID.
+* train.txt: This is the training set after session splitting. The content has been converted using pickle. The input is a sequence of item IDs, and the target is a single item ID.
+* test.txt: This is the test set after session splitting. The content has been converted using pickle. The input is a sequence of item IDs, and the target is a single item ID.
+
+The "DSR-HK/" folder contains program files for the entire experiment and model architecture. It includes four files:
+* con.py: This file details the module responsible for handling hypergraph convolution in the model architecture.
+* main.py: This file manages the model's hyperparameters and declarations.
+* model.py: This file contains the main structure of the model.
+* util.py: This file is responsible for processing the structure of datasets to be input into the model.
+
+## Execution
+Please run the code as follow:
+```
+python main.py [Options]
+```
+
+
+### Options
+| Name                 | Default           | Description                                                         |
+|:-------------------- | ----------------- |:------------------------------------------------------------------- |
+| `--dataset`          | `Retailrocket`    | Dataset name </br> Options: `Tmall`, `KKBOX` or `Retailrocket`      |
+| `--epoch`            | `7`               | Number of epochs to train for                                       |
+| `--batchSize`        | `100`             | Knowledge graph training batch size                                 |
+| `--kg_batch_size`    | `100`             | Recommendation training batch size                                  |
+| `--embSize`          | `112`             | Item embedding size                                                 |
+| `--kg_embSize`       | `112`             | Entity embedding size                                               |
+| `--relation_embSize` | `112`             | Relation embedding size                                             |
+| `--lr`               | `0.001`           | Learning rate                                                       |
+| `--seed`             | `-2023`           | Random seed used in the experiment.                                 |
+| `--layer`            | `1`               | The number of layer used                                            |
+| `--beta`             | `0.001`           | ssl task maginitude                                                 |
+| `--layer_size`       | `[112, 112, 112]` | Output size of each layer in the knowledge graph convolution        |
+| `--adj_type`         | `si`              | Specify the type of the adjacency (laplacian) matrix from {bi, si}. |
+| `--K`                | `5`               | Number of positive and negative samples                             |
+| `--temperature`      | `0.1`             | Temperature parameter of contrastive loss                           |
+### Example
+```bash
+$ python main.py \
+  --dataset="Tmall" --epoch=10  \
+  --layer=2  \
+  --beta=0.05
+```
+
+To obtain the results reported in the paper, please set the parameters as follows:
+|             | Tmall | KKBOX | Retailrocket |
+| ----------- | ----- | ----- | ------------ |
+| layer       | 1     | 1     | 1            |
+| beta        | 0.05  | 0.001 | 0.001        |
+| temperature | 0.1   | 0.05  | 1            |
+| K           | 5     | 5     | 5            |
+
+Other parameters do not need to be changed.
