@@ -34,7 +34,7 @@ The "datasets/" folder contains three preprocessed datasets used for testing the
 * train.txt: This is the training set after session splitting. The content has been converted using pickle. The input is a sequence of item IDs, and the target is a single item ID.
 * test.txt: This is the test set after session splitting. The content has been converted using pickle. The input is a sequence of item IDs, and the target is a single item ID.
 
-The "DSR-HK/" folder contains program files for the entire experiment and model architecture. It includes four files:
+The "code/" folder contains program files for the entire experiment and model architecture. It includes four files:
 * con.py: This file details the module responsible for handling hypergraph convolution in the model architecture.
 * main.py: This file manages the model's hyperparameters and declarations.
 * model.py: This file contains the main structure of the model.
