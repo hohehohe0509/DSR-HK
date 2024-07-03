@@ -19,10 +19,10 @@ Please download and install the following packages to configure the environment:
 #cuda 11.8
 
 pip install --user -U scikit-learn==0.23.2
-pip install pytorch 2.0.1+cu118
-pip install numpy 1.26.2
-pip install scipy 1.11.4
-pip install numba 0.58.1
+pip install pytorch==2.0.1+cu118
+pip install numpy==1.26.2
+pip install scipy==1.11.4
+pip install numba==0.58.1
 pip install dgl -f https://data.dgl.ai/wheels/cu118/repo.html
 ```
 
