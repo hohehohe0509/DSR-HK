@@ -49,7 +49,7 @@ python main.py [Options]
 ### Options
 | Name                 | Default           | Description                                                         |
 |:-------------------- | ----------------- |:------------------------------------------------------------------- |
-| `--dataset`          | `Retailrocket`    | Dataset name </br> Options: `Tmall`, `KKBOX` or `Retailrocket`      |
+| `--dataset`          | `Tmall`    | Dataset name </br> Options: `Tmall`, `KKBOX` or `Retailrocket`      |
 | `--epoch`            | `7`               | Number of epochs to train for                                       |
 | `--batchSize`        | `100`             | Knowledge graph training batch size                                 |
 | `--kg_batch_size`    | `100`             | Recommendation training batch size                                  |
@@ -59,7 +59,7 @@ python main.py [Options]
 | `--lr`               | `0.001`           | Learning rate                                                       |
 | `--seed`             | `-2023`           | Random seed used in the experiment.                                 |
 | `--layer`            | `1`               | The number of layer used                                            |
-| `--beta`             | `0.001`           | ssl task maginitude                                                 |
+| `--beta`             | `0.05`           | ssl task maginitude                                                 |
 | `--layer_size`       | `[112, 112, 112]` | Output size of each layer in the knowledge graph convolution        |
 | `--adj_type`         | `si`              | Specify the type of the adjacency (laplacian) matrix from {bi, si}. |
 | `--K`                | `5`               | Number of positive and negative samples                             |
