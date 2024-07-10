@@ -13,7 +13,7 @@ from numba import jit
 import heapq
 import dgl
 from conv import myGATConv, DropLearner
-from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm
 
 def trans_to_cuda(variable):
     if torch.cuda.is_available():
