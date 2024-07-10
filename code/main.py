@@ -45,7 +45,7 @@ opt = parser.parse_args()
 print(opt)
 
 logging.basicConfig(
-    filename='./clear/%s_test4.log' % opt.dataset, 
+    filename='../log/%s_test4.log' % opt.dataset, 
     level=logging.INFO, 
     format='%(asctime)s,%(msecs)03d [%(levelname)s] %(name)s: %(message)s',  
     datefmt='%Y-%m-%d %H:%M:%S'
