@@ -66,7 +66,7 @@ python main.py [Options]
 | `--temperature`      | `0.1`             | Temperature parameter of contrastive loss                           |
 ### Example
 ```bash
-$ python main.py \
+$ python3.10 main.py \
   --dataset="Tmall" --epoch=10  \
   --layer=2  \
   --beta=0.05
