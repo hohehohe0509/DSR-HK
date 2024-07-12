@@ -27,52 +27,6 @@ def trans_to_cpu(variable):
     else:
         return variable
 
-
-class Contrast_2view(nn.Module):
-    def __init__(self, cf_dim, kg_dim, hidden_dim, tau, cl_size):
-        super(Contrast_2view, self).__init__()
-        self.projcf = nn.Sequential(
-            nn.Linear(cf_dim, hidden_dim),
-            nn.ELU(),
-            nn.Linear(hidden_dim, hidden_dim)
-        )
-        self.projkg = nn.Sequential(
-            nn.Linear(kg_dim, hidden_dim),
-            nn.ELU(),
-            nn.Linear(hidden_dim, hidden_dim)
-        )
-        self.pos = torch.eye(cl_size).cuda()
-        self.tau = tau
-        for model in self.projcf:
-            if isinstance(model, nn.Linear):
-                nn.init.xavier_normal_(model.weight, gain=1.414)
-        for model in self.projkg:
-            if isinstance(model, nn.Linear):
-                nn.init.xavier_normal_(model.weight, gain=1.414)
-
-    def sim(self, z1, z2):
-        z1_norm = torch.norm(z1, dim=-1, keepdim=True)
-        z2_norm = torch.norm(z2, dim=-1, keepdim=True)
-        dot_numerator = torch.mm(z1, z2.t())
-        dot_denominator = torch.mm(z1_norm, z2_norm.t())
-        sim_matrix = torch.exp(dot_numerator / dot_denominator / self.tau)
-        sim_matrix = sim_matrix/(torch.sum(sim_matrix, dim=1).view(-1, 1) + 1e-8)
-        assert sim_matrix.size(0) == sim_matrix.size(1)
-        lori_mp = -torch.log(sim_matrix.mul(self.pos).sum(dim=-1)).mean()
-        return lori_mp
-
-    def forward(self, z1, z2):
-        multi_loss = False
-        z1_proj = self.projcf(z1)
-        z2_proj = self.projkg(z2)
-        if multi_loss:
-            loss1 = self.sim(z1_proj, z2_proj)
-            loss2 = self.sim(z1_proj, z1_proj)
-            loss3 = self.sim(z2_proj, z2_proj)
-            return (loss1 + loss2 + loss3) / 3
-        else:
-            return self.sim(z1_proj, z2_proj)
-
 class HyperConv(Module):
     def __init__(self, layers,dataset,emb_size=112):
         super(HyperConv, self).__init__()
@@ -115,28 +69,31 @@ class SessConv(Module):
         K = torch.sigmoid(torch.matmul(seq,self.W_k))
         C = torch.div(torch.sigmoid(torch.matmul(Q, K.permute(0,2,1))), torch.sqrt(d.view(-1,1)))
 
-        ##這邊在將C的對角線設為0，方便後面相加
+        # Set the diagonal of C to 0
         result_matrix = mask[:, None] * mask.unsqueeze(2)
         C = result_matrix * C
         diag = torch.diagonal(C, dim1=1, dim2=2)
         a_diag = torch.diag_embed(diag)
         C = C-a_diag
         
+        # Equation (3.10)
         alpha = torch.div(torch.sum(C, 2),(session_len))
         get = lambda i: alpha[i,:session_len[i]]
 
+        # Equation (3.11)
         for i in torch.arange(session_item.shape[0]):
             beta = F.softmax(get(i), 0)
             session_long = torch.matmul(beta,seq[i,:session_len[i]])
             seq_h[i] = session_long
-           
-        
+
         return seq_h
 
     def forward(self, item_embedding, D, A, session_item, session_len, mask):
         session_emb = self.SR_IEM(item_embedding, session_item, session_len, mask)
         session = [session_emb]
         DA = torch.mm(D, A).float()
+
+        # Equation (3.12)
         for i in range(self.layers):
             session_emb = trans_to_cuda(self.w_sess[i])(session_emb)
             session_emb = torch.mm(DA, session_emb)
@@ -243,8 +200,7 @@ class COTREC(Module):
         
         self.learner1 = DropLearner(self.kg_embSize, self.kg_embSize)
         self.learner2 = DropLearner(self.kg_embSize, self.kg_embSize, self.kg_embSize)
-        
-        # self.contrast = Contrast_2view(self.emb_size, self.kg_embSize + 48, cl_dim, 0.7, opt.batch_size_cl)
+    
         self.loss_function = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         self.init_parameters()
@@ -254,32 +210,34 @@ class COTREC(Module):
         for weight in self.parameters():
             weight.data.uniform_(-stdv, stdv)  
 
+    # Inverse positional embedding
     def generate_sess_emb(self, item_embedding, session_item, session_len, reversed_sess_item, mask):
         zeros = torch.cuda.FloatTensor(1, self.emb_size).fill_(0)
-        
-        #因為這裡又加了一排0，所以取item embedding的時候可以照著item本身的ID取
         item_embedding = torch.cat([zeros, item_embedding], 0)
         get = lambda i: item_embedding[reversed_sess_item[i]]
         seq_h = torch.cuda.FloatTensor(self.batch_size, list(reversed_sess_item.shape)[1], self.emb_size).fill_(0)
         for i in torch.arange(session_item.shape[0]):
             seq_h[i] = get(i)
         
-        #這邊在把item embedding相加，並且除以Session長度，得到還沒有位置資訊的session embedding
+        # hs=x^k_s
         hs = torch.div(torch.sum(seq_h, 1), session_len)
         mask = mask.float().unsqueeze(-1)
         len = seq_h.shape[1]
         pos_emb = self.pos_embedding[:len]
         pos_emb = pos_emb.unsqueeze(0).repeat(self.batch_size, 1, 1)
         hs = hs.unsqueeze(-2).repeat(1, len, 1)
+        # Equation (3.5)
         last_item = item_embedding[reversed_sess_item[:,0]].unsqueeze(-2).repeat(1, len, 1)
         nh = torch.matmul(torch.cat([pos_emb, seq_h], -1), self.w_1)
         nh = torch.tanh(nh)
+        # Equation (3.6)
         nh = torch.sigmoid(self.glu1(nh) + self.glu2(hs) +self.glu3(last_item))
         beta = torch.matmul(nh, self.w_2)
         beta = beta * mask
         select = torch.sum(beta * seq_h, 1)
         return select
 
+    # No Inverse positional embedding
     def generate_sess_emb_npos(self, item_embedding, session_item, session_len, reversed_sess_item, mask):
         zeros = torch.cuda.FloatTensor(1, self.emb_size).fill_(0)
         
@@ -324,6 +282,7 @@ class COTREC(Module):
         con_loss = -torch.sum(torch.log(pos_score / (pos_score + neg_score)))
         return con_loss
 
+    # Equation (3.16)
     def SSL(self, sess_emb_i, sess_emb_s):
         def row_column_shuffle(embedding):
             corrupted_embedding = embedding[torch.randperm(embedding.size()[0])]
@@ -407,7 +366,7 @@ class COTREC(Module):
         r_mul_pos_t = torch.bmm(pos_t_emb.unsqueeze(1), W_r).squeeze(1)     # (kg_batch_size, relation_dim)
         r_mul_neg_t = torch.bmm(neg_t_emb.unsqueeze(1), W_r).squeeze(1)     # (kg_batch_size, relation_dim)
 
-        # Equation (1)
+        # Equation (3.20)
         pos_score = torch.sum(torch.pow(r_mul_h + r_embed - r_mul_pos_t, 2), dim=1)     # (kg_batch_size)
         neg_score = torch.sum(torch.pow(r_mul_h + r_embed - r_mul_neg_t, 2), dim=1)     # (kg_batch_size)
         aug_edge_weight = 1
@@ -416,34 +375,29 @@ class COTREC(Module):
             emb = (emb / (torch.max(torch.norm(emb, dim=1, keepdim=True),self.epsilon)))
             _, aug_edge_weight = self.learner2.get_weight(emb[h], emb[pos_t], temperature = 0.7)
             
-        #loss
+        # Equation (3.21)
         base_loss = (aug_edge_weight * F.softplus(-neg_score + pos_score)).mean()
         return base_loss
 
     def train_loss(self, sessionID, session_item, session_len, D, A, reversed_sess_item, mask, epoch, tar, diff_mask, kg):
         item_embeddings_i = self.HyperGraph(self.adjacency, self.embedding)
         item_embeddings_kg, reg_kg = self.calc_kg_emb(kg, True)
+        sess_emb_s = self.SessGraph(self.embedding, D, A, session_item, session_len, mask)
 
-        if self.dataset == 'Tmall':
-            # for Tmall dataset, we do not use position embedding to learn temporal order
-            sess_emb_i = self.generate_sess_emb(item_embeddings_i, session_item, session_len,reversed_sess_item, mask)
-            sess_emb_kg = self.generate_sess_emb(item_embeddings_kg, session_item, session_len,reversed_sess_item, mask)
-        else:
-            sess_emb_i = self.generate_sess_emb(item_embeddings_i, session_item, session_len, reversed_sess_item, mask)
-            sess_emb_kg = self.generate_sess_emb(item_embeddings_kg, session_item, session_len,reversed_sess_item, mask)
+        sess_emb_i = self.generate_sess_emb(item_embeddings_i, session_item, session_len, reversed_sess_item, mask)
+        sess_emb_kg = self.generate_sess_emb(item_embeddings_kg, session_item, session_len,reversed_sess_item, mask)
         
         sess_emb_i = self.w_k * F.normalize(sess_emb_i, dim=-1, p=2)
         sess_emb_kg = self.w_k * F.normalize(sess_emb_kg, dim=-1, p=2)
         item_embeddings_i = F.normalize(item_embeddings_i, dim=-1, p=2)
         item_embeddings_kg = F.normalize(item_embeddings_kg, dim=-1, p=2)
         
+        # Equation (3.17)
         session_embedding_all = torch.cat([sess_emb_i, sess_emb_kg], 1)
         item_embeddings_all = torch.cat([item_embeddings_i, item_embeddings_kg], 1)
         scores_item = torch.mm(session_embedding_all, torch.transpose(item_embeddings_all, 1, 0))
         loss_item = self.loss_function(scores_item, tar)
-
-        
-        sess_emb_s = self.SessGraph(self.embedding, D, A, session_item, session_len, mask)
+   
         # compute probability of items to be positive examples
         pos_prob_I = self.example_predicting(item_embeddings_i, sess_emb_i)
         pos_prob_S = self.example_predicting(self.embedding, sess_emb_s)
@@ -466,12 +420,9 @@ class COTREC(Module):
 
         item_embeddings_i = self.HyperGraph(self.adjacency, self.embedding)
         item_embeddings_kg = self.calc_kg_emb(kg)
-        if self.dataset == 'Tmall':
-            sess_emb_i = self.generate_sess_emb(item_embeddings_i, session_item, session_len,reversed_sess_item, mask)
-            sess_emb_kg = self.generate_sess_emb(item_embeddings_kg, session_item, session_len,reversed_sess_item, mask)
-        else:
-            sess_emb_i = self.generate_sess_emb(item_embeddings_i, session_item, session_len, reversed_sess_item, mask)
-            sess_emb_kg = self.generate_sess_emb(item_embeddings_kg, session_item, session_len,reversed_sess_item, mask)
+
+        sess_emb_i = self.generate_sess_emb(item_embeddings_i, session_item, session_len, reversed_sess_item, mask)
+        sess_emb_kg = self.generate_sess_emb(item_embeddings_kg, session_item, session_len,reversed_sess_item, mask)
         
         sess_emb_i = self.w_k * F.normalize(sess_emb_i, dim=-1, p=2)
         sess_emb_kg = self.w_k * F.normalize(sess_emb_kg, dim=-1, p=2)
