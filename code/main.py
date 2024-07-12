@@ -93,11 +93,11 @@ def main():
         e_feat.append(edge2type[(u,v)])
     for i in range(train_data.n_entities):
         e_feat.append(edge2type[(i,i)])
-    #e_feat裡面存每個triple的relation是誰，是一個list（按照kg.edges()的順序存）
+        
+    # e_feat stores which relation each triple belongs to
     e_feat = torch.tensor(e_feat, dtype=torch.long).to('cuda')
     kg = kg.to('cuda')
     
-    #有KG
     model = trans_to_cuda(COTREC(adjacency=train_data.adjacency,n_node=n_node,n_item=train_data.n_items,n_relations=train_data.n_relations,opt=opt,num_layers=num_layers, num_hidden=weight_size[-2], num_classes=weight_size[-1],  heads=heads, activation=F.elu, feat_drop=0.1, attn_drop=0., negative_slope=0.01, residual=False,emb_size=opt.embSize, relation_embSize=opt.relation_embSize, ret_num=ret_num))
 
     top_K = [5, 10, 20]
