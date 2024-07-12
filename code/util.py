@@ -7,10 +7,7 @@ import time
 import collections
 import torch
 
-#itemID是從1開始
-#但是KG是從0開始，所以要把KG的ID換成從1開始
-#這邊的n_node有算進KG的entity數
-
+# Hypergraph
 def data_masks(all_sessions, n_node):
     item_dict = dict()
     inter_mat = list()
@@ -60,14 +57,10 @@ class Data():
             kg_data = self.load_kg('../datasets/'+dataset+'/kg.txt')
             print(time.strftime("%Y-%m-%d %H:%M:%S ", time.localtime()), '-- kg data load --')
             self.construct_data(kg_data)
+            # generate the triples dictionary, key is 'head', value is '(tail, relation)'
             self.all_kg_dict = self._get_all_kg_dict()
-            # generate the sparse adjacency matrices for user-item interaction.
             self.kg_adj_list, self.adj_r_list = self._get_kg_adj_list()
-
-            # generate the sparse laplacian matrices.
             self.kg_lap_list = self._get_kg_lap_list()
-            
-            # generate the triples dictionary, key is 'head', value is '(tail, relation)'.
 
     def get_overlap(self, sessions):
         matrix = np.zeros((len(sessions), len(sessions)))
@@ -103,7 +96,7 @@ class Data():
     def get_slice(self, index):
         items, num_node = [], []
         inp = self.raw[index]
-        #這邊可以得到當前batch中每一個session的長度
+        # Obtain the length of each session in the current batch
         for session in inp:
             num_node.append(len(np.nonzero(session)[0]))
         max_n_node = np.max(num_node)
@@ -117,30 +110,26 @@ class Data():
             # item_set.update(set([t-1 for t in session]))
             session_len.append([len(nonzero_elems)])
 
-            #這邊會把所有session補到相同長度，該長度為當前batch最長的session
-            #上面會維持itemID，下面會把有item的位置用1取代
+            #Pad all sessions to the same length, which is the length of the longest session in the current batch
             items.append(session + (max_n_node - len(nonzero_elems)) * [0])
             mask.append([1]*len(nonzero_elems) + (max_n_node - len(nonzero_elems)) * [0])
             
-            #這邊會把session內的item順序倒過來，然後一樣補長
+            # Reverse the order of items within the session
             reversed_sess_item.append(list(reversed(session)) + (max_n_node - len(nonzero_elems)) * [0])
-        
 
-        #我猜這個100是指batchSize
         diff_mask = np.ones(shape=[100, self.n_node]) * (1/(self.n_node - 1))
 
-        #因為target的ID不是從0開始，所以需要減1
         for count, value in enumerate(self.targets[index]-1):
             diff_mask[count][value] = 1
         return self.targets[index]-1, session_len,items, reversed_sess_item, mask, diff_mask
     
     def load_kg(self, filename):
         kg_data = pd.read_csv(filename, sep=' ', names=['h', 'r', 't'], engine='python')
-        kg_data = kg_data.drop_duplicates()  # 去除重复项
+        kg_data = kg_data.drop_duplicates()
         return kg_data
 
     def construct_data(self, kg_data):
-        # plus inverse kg data  相当于做成无向图
+        # plus inverse kg data
         n_relations = max(kg_data['r']) + 1
         reverse_kg_data = kg_data.copy()
         reverse_kg_data = reverse_kg_data.rename({'h': 't', 't': 'h'}, axis='columns')
@@ -152,28 +141,17 @@ class Data():
 
         # re-map user id
         self.n_relations = max(self.kg_data['r']) + 1
-        #self.n_entities = max(max(kg_data['h']), max(kg_data['t'])) + 1
-        
-        #我的entity_id是從1開始，所以不需要再加1
         self.n_entities = max(max(kg_data['h']), max(kg_data['t']))
-        #self.n_users_entities = self.n_users + self.n_entities
-
-        # 基于CKG建模
-        # kg_data: 关系的无向图三元组 [5115492, 3]
-        # cf2kg_train_data: 关系值为零的用户和项目三元组 [None, 3]
-        # reverse_cf2kg_train_data: 关系值为一的项目和用户三元组 [None, 3]
-
         self.n_kg_data = len(self.kg_data)
 
         # construct kg dict
-        self.kg_dict = collections.defaultdict(list)  # 便于查询，不存在时不会报错
-        self.relation_dict = collections.defaultdict(list)  # 便于查询，不存在时不会报错
+        self.kg_dict = collections.defaultdict(list)
+        self.relation_dict = collections.defaultdict(list)
         # self.train_relation_dict = collections.defaultdict(list)
-        for row in self.kg_data.iterrows():  # 遍历行数据,index, row
+        for row in self.kg_data.iterrows():
             h, r, t = row[1]
             self.kg_dict[h].append((t, r))
             self.relation_dict[r].append((h, t))
-            # self.train_relation_dict[r].append((h, t))
 
     def sample_pos_triples_for_h(self, kg_dict, head, n_sample_pos_triples):
         pos_triples = kg_dict[head]
@@ -200,8 +178,6 @@ class Data():
         while True:
             if len(sample_neg_tails) == n_sample_neg_triples:
                 break
-
-            #這裡的n_entities看要不要改回n_node
             tail = np.random.randint(low=0, high=self.n_entities, size=1)[0]
             if (tail, relation) not in pos_triples and tail not in sample_neg_tails:
                 sample_neg_tails.append(tail)
@@ -233,7 +209,7 @@ class Data():
     def _get_kg_adj_list(self, is_subgraph = False, dropout_rate = None):
         adj_mat_list = []
         adj_r_list = []
-        #每一個relation都建一個鄰接矩陣
+        # Build an adjacency matrix for each relation
         def _np_mat2sp_adj(np_mat):
             n_all = self.n_entities
             # single-direction
@@ -251,7 +227,7 @@ class Data():
 
             return a_adj
         
-        #relation_dict裡面記錄了relation有哪幾個(head,tail)
+        # relation_dict records which (head, tail) pairs each relation has
         for r_id in self.relation_dict.keys():
             #print(r_id)
             K = _np_mat2sp_adj(np.array(self.relation_dict[r_id]))
@@ -291,9 +267,9 @@ class Data():
             lap_list = [self._si_norm_lap(adj) for adj in adj_list]
         return lap_list
     
-    #這是用來存每個head分別跟誰有關聯，是甚麼關聯，例：{head:(tail,relation)}
+    # Store which entities each head is associated with and what the relation is, for example: {head: (tail, relation)}
     def _get_all_kg_dict(self):
-        #當遇到不存在的key時，會產生一個default值，此值為一個空list
+        # When encountering a non-existent key, it generates a default value, which is an empty list
         all_kg_dict = collections.defaultdict(list)
         
         for relation in self.relation_dict.keys():
